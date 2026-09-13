@@ -3,10 +3,10 @@ package core
 import "time"
 
 type Event struct {
-	ID        int64     `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
-	Source    string    `json:"source"`
-	Type      string    `json:"type"`
-	Severity  string    `json:"severity"`
-	Message   string    `json:"message"`
+	ID        int64     `json:"ID"`
+	Timestamp time.Time `json:"Timestamp"`
+	Source    string    `json:"Source"`
+	Type      string    `json:"Type"`
+	Severity  string    `json:"Severity"`
+	Message   string    `json:"Message"`
 }
