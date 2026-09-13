@@ -25,7 +25,7 @@ func TestFileSourceReadsOnlyNewLines(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Start() should seed the offset at EOF — a first Poll should see nothing.
+	// Start() should seed the offset at EOF - a first Poll should see nothing.
 	events, err := src.Poll()
 	if err != nil {
 		t.Fatal(err)

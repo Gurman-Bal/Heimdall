@@ -1,12 +1,16 @@
-import { getEvents } from "../api.js";
+import { getEvents, getEventNoise } from "../api.js";
 import { eventRow } from "../components/eventRow.js";
 import { enableExpandableRows } from "../utils.js";
 
 let events = [];
+let noise = [];
 let currentFilter = "all";
 let expandableEnabled = false;
+let paused = false;
+let pendingCount = 0;
 
 const eventList = document.getElementById("event-list");
+const pauseBtn = document.getElementById("watch-pause-btn");
 
 const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
@@ -20,26 +24,42 @@ export async function initializeWatch() {
 
     if (!expandableEnabled) {
         enableExpandableRows(eventList);
+        pauseBtn.addEventListener("click", togglePause);
         expandableEnabled = true;
     }
 
-    renderEvents();
+    renderCurrentFilter();
 
     updateStatus();
 
     connectStream();
 }
 
+function togglePause() {
+    paused = !paused;
+    pauseBtn.textContent = paused ? `RESUME (${pendingCount})` : "PAUSE";
+    pauseBtn.classList.toggle("active", paused);
+
+    if (!paused) {
+        pendingCount = 0;
+        renderCurrentFilter();
+        updateStatus();
+    }
+}
+
 function initializeFilters() {
 
+    // Scoped to #view-watch so this never touches the Activity tab's
+    // 1H/24H/48H buttons or the pause button - they share the same
+    // .filter-btn class but aren't part of this view's severity filter.
     document
-        .querySelectorAll(".filter-btn")
+        .querySelectorAll("#view-watch .filter-btn[data-severity]")
         .forEach(btn => {
 
             btn.addEventListener("click", () => {
 
                 document
-                    .querySelectorAll(".filter-btn")
+                    .querySelectorAll("#view-watch .filter-btn[data-severity]")
                     .forEach(b => b.classList.remove("active"));
 
                 btn.classList.add("active");
@@ -47,12 +67,41 @@ function initializeFilters() {
                 currentFilter =
                     btn.dataset.severity;
 
-                renderEvents();
+                renderCurrentFilter();
 
             });
 
         });
 
+}
+
+function renderCurrentFilter() {
+    if (currentFilter === "noise") {
+        loadNoise();
+        return;
+    }
+    renderEvents();
+}
+
+async function loadNoise() {
+    noise = await getEventNoise();
+
+    if (!noise || noise.length === 0) {
+        eventList.innerHTML = `<div class="empty-state">no noise recorded</div>`;
+        return;
+    }
+
+    eventList.innerHTML = noise
+        .map(n => `
+            <div class="event-row noise">
+                <span class="noise-count">${n.count}×</span>
+                <span class="event-source">${n.source}</span>
+                <span class="event-type">${n.type}</span>
+                <span class="event-message">${n.message}</span>
+                <span class="noise-last">last seen: ${new Date(n.last_seen).toLocaleTimeString()}</span>
+            </div>
+        `)
+        .join("");
 }
 
 function renderEvents() {
@@ -72,7 +121,7 @@ function renderEvents() {
                 ${
             currentFilter !== "all"
                 ? ` at ${currentFilter} severity`
-                : " yet — heimdall is watching"
+                : " yet - heimdall is watching"
         }
             </div>
         `;
@@ -124,13 +173,30 @@ function updateStatus() {
 
 function prependEvent(e) {
 
+    // Ignore-severity events are aggregated server-side into event_noise
+    // and never land in /api/events, but the live SSE bus may still carry
+    // them the instant they're classified. Drop them here too, otherwise
+    // a single noisy source re-renders the whole list every second and
+    // wipes any row you've expanded to read, even with pause off.
+    if (e.Severity === "ignore") {
+        return;
+    }
+
     events.unshift(e);
 
     if (events.length > 200) {
         events.pop();
     }
 
-    renderEvents();
+    if (paused) {
+        pendingCount++;
+        pauseBtn.textContent = `RESUME (${pendingCount})`;
+        return;
+    }
+
+    if (currentFilter !== "noise") {
+        renderEvents();
+    }
 
     updateStatus();
 }

@@ -45,8 +45,8 @@ func (s *Scheduler) Run(stop <-chan struct{}) {
 					continue
 				}
 				for _, e := range events {
-					s.bus.Publish(e) // live SSE — best-effort, fine to drop
-					s.spool.Push(e)  // persistence — never dropped, spills to disk if needed
+					s.bus.Publish(e) // live SSE - best-effort, fine to drop
+					s.spool.Push(e)  // persistence - never dropped, spills to disk if needed
 				}
 			}
 		}

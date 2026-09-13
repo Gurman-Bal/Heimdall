@@ -43,7 +43,7 @@ async function loadReports() {
         reportList.innerHTML = `
             <div class="empty-state">
                 no reports yet
-                — click generate now,
+                - click generate now,
                 or wait for the scheduled run
             </div>
         `;

@@ -27,7 +27,7 @@ func New(sourceType string, paths []string, store OffsetStore, classifier Classi
 	return NewFileSource(sourceType, paths, parse, store, classifier), true
 }
 
-// DefaultRule is the seed-time shape for a source type's starter rules —
+// DefaultRule is the seed-time shape for a source type's starter rules -
 // separate from core.RuleDef, which carries a DB-assigned ID that doesn't
 // exist yet at registration time.
 type DefaultRule struct {

@@ -20,7 +20,7 @@ func TestRuleEngineClassify(t *testing.T) {
 
 func TestRuleEnginePriorityOrdering(t *testing.T) {
 	re := NewRuleEngine()
-	// Both patterns match the same line — lower priority number must win,
+	// Both patterns match the same line - lower priority number must win,
 	// regardless of the order they were passed in.
 	re.Load("test", []RuleDef{
 		{ID: 1, Pattern: `error`, Severity: "warning", EventType: "generic_error", Priority: 100},
@@ -29,7 +29,7 @@ func TestRuleEnginePriorityOrdering(t *testing.T) {
 
 	severity, eventType := re.Classify("test", "a critical error occurred")
 	if severity != "critical" || eventType != "specific_error" {
-		t.Errorf("got (%s, %s), want (critical, specific_error) — priority ordering broken", severity, eventType)
+		t.Errorf("got (%s, %s), want (critical, specific_error) - priority ordering broken", severity, eventType)
 	}
 }
 

@@ -78,7 +78,7 @@ func Load() Config {
 	cfg.BatchSize = getInt("HEIMDALL_BATCH_SIZE", 500)
 
 	if cfg.InternalToken == "" {
-		slog.Warn("HEIMDALL_INTERNAL_TOKEN not set — controller/worker internal API is unauthenticated on the docker network")
+		slog.Warn("HEIMDALL_INTERNAL_TOKEN not set - controller/worker internal API is unauthenticated on the docker network")
 	}
 
 	return cfg

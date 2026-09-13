@@ -23,15 +23,14 @@ func (s *Store) SaveActivity(e core.ActivityEntry) error {
 
 func (s *Store) RecentActivity(since time.Time, limit int) ([]core.ActivityEntry, error) {
 	rows, err := s.db.Query(
-		`SELECT time, level, message, attrs FROM activity_log WHERE time >= ? ORDER BY id DESC LIMIT ?`,
+		`SELECT id, time, level, message, attrs FROM activity_log WHERE time >= ? ORDER BY id DESC LIMIT ?`,
 		since, limit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
+		if err := rows.Close(); err != nil {
 			slog.Error("failed to close storage", "error", err)
 		}
 	}(rows)
@@ -40,12 +39,11 @@ func (s *Store) RecentActivity(since time.Time, limit int) ([]core.ActivityEntry
 	for rows.Next() {
 		var e core.ActivityEntry
 		var attrsJSON string
-		if err := rows.Scan(&e.Time, &e.Level, &e.Message, &attrsJSON); err != nil {
+		if err := rows.Scan(&e.ID, &e.Time, &e.Level, &e.Message, &attrsJSON); err != nil {
 			return nil, err
 		}
 		e.Attrs = map[string]string{}
-		err := json.Unmarshal([]byte(attrsJSON), &e.Attrs)
-		if err != nil {
+		if err := json.Unmarshal([]byte(attrsJSON), &e.Attrs); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

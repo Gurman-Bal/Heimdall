@@ -12,7 +12,7 @@ import (
 	"heimdall/internal/storage"
 )
 
-// Server is the worker's internal API — reachable only on the docker
+// Server is the worker's internal API - reachable only on the docker
 // compose network, never published to the host. The controller is its only
 // client. Every route is gated by a shared token so nothing else on the
 // network can trigger reloads or read internal state.
@@ -82,7 +82,7 @@ func (s *Server) handleLLMHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleReload reconciles every registered source type's tailed paths and
-// the rule engine against whatever's currently in the database — called by
+// the rule engine against whatever's currently in the database - called by
 // the controller right after any write to the sources or rules tables.
 func (s *Server) handleReload(w http.ResponseWriter, _ *http.Request) {
 	for _, sourceType := range ingest.Registered() {

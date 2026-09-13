@@ -19,7 +19,7 @@ type Classifier interface {
 }
 
 // ParseFunc converts one raw log line into an Event. This is the only thing
-// that differs between source types — everything else is shared.
+// that differs between source types - everything else is shared.
 type ParseFunc func(line string) core.Event
 
 type fileState struct {

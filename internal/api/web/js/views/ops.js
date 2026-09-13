@@ -15,7 +15,7 @@ let statusPoller = null;
 
 export async function initializeOps() {
 
-    // Run independently — one failing must never block the others again.
+    // Run independently - one failing must never block the others again.
     await Promise.allSettled([
         loadSystemStatus(),
         loadContainers(),
@@ -61,15 +61,15 @@ async function loadSystemStatus() {
             </div>
             <div class="source-row">
                 <span class="source-path">events dropped (live stream)</span>
-                <span class="source-type">${worker.events_dropped ?? "—"}</span>
+                <span class="source-type">${worker.events_dropped ?? "-"}</span>
             </div>
             <div class="source-row">
                 <span class="source-path">events spilled to disk</span>
-                <span class="source-type">${worker.events_spilled ?? "—"}</span>
+                <span class="source-type">${worker.events_spilled ?? "-"}</span>
             </div>
             <div class="source-row">
                 <span class="source-path">spool backlog</span>
-                <span class="source-type">${worker.spool_backlog ?? "—"}</span>
+                <span class="source-type">${worker.spool_backlog ?? "-"}</span>
             </div>
             <div class="source-row">
                 <span class="source-path">llm</span>

@@ -109,7 +109,7 @@ func (r *Reporter) Generate(ctx context.Context, fallbackWindow time.Duration) (
 	return id, nil
 }
 
-// buildPrompt is deliberately terse — small local models degrade fast with
+// buildPrompt is deliberately terse - small local models degrade fast with
 // long context, so we cap notable lines lower than we would for a hosted
 // frontier model and keep instructions short and concrete.
 func buildPrompt(events []core.Event) (prompt, countsLabel string) {

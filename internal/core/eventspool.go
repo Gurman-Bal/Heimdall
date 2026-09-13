@@ -133,7 +133,7 @@ func (s *EventSpool) spillFlushLoop() {
 		s.mu.Unlock()
 
 		if err := s.appendSpillMember(toWrite); err != nil {
-			slog.Error("failed to write spill file — events lost", "count", len(toWrite), "error", err)
+			slog.Error("failed to write spill file - events lost", "count", len(toWrite), "error", err)
 		}
 	}
 }
@@ -227,7 +227,7 @@ func (s *EventSpool) drainSpillFile() error {
 		slog.Info("drained spool file back into persistence pipeline", "count", drained)
 	}
 
-	// Only delete if we can also confirm nothing new got appended mid-read —
+	// Only delete if we can also confirm nothing new got appended mid-read -
 	// simplest safe approach: remove, and anything written concurrently
 	// during this drain just starts a fresh file on the next flush.
 	return os.Remove(s.spillPath)

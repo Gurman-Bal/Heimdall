@@ -75,9 +75,14 @@ async function loadActivity() {
         return;
     }
 
+    // Real row IDs (see storage/activity.go) are unique and stable across
+    // polls, unlike Time+Message which collides whenever two entries land
+    // in the same second with the same text - that collision was why an
+    // expanded row could snap shut on the next 5s refresh even though it
+    // was still on screen.
     activityList.innerHTML = entries
         .map(e => {
-            const key = `${e.Time}-${e.Message}`;
+            const key = String(e.ID);
             return `
                 <div class="activity-row ${(e.Level || "").toLowerCase()}" data-key="${key}">
                     <span class="event-time">${new Date(e.Time).toLocaleString()}</span>

@@ -15,7 +15,7 @@ logoutButton.addEventListener("click", async () => {
 });
 
 function initializeApp() {
-    // Install login UI + global 401 handling first — this is synchronous
+    // Install login UI + global 401 handling first - this is synchronous
     // and cheap. If the session is actually invalid, the first API call
     // any of the code below makes will 401 and the global handler shows
     // the login overlay then. No need to block startup on a pre-check.

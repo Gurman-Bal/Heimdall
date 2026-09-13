@@ -14,7 +14,7 @@ import (
 var processStartedAt = time.Now()
 
 // performContainerAction is the single entry point for all container
-// control. There is no free-text parsing anywhere in this path — action is
+// control. There is no free-text parsing anywhere in this path - action is
 // one of exactly three known strings, checked with a switch, nothing else
 // can reach dockerctl.
 func (s *Server) performContainerAction(ctx context.Context, name, action string) error {
@@ -34,7 +34,7 @@ func (s *Server) performContainerAction(ctx context.Context, name, action string
 
 	case "stop":
 		if isSelf {
-			return fmt.Errorf("cannot stop %s from its own UI — you'd have no way to start it back up from here; run `docker compose start %s` on the host instead", s.selfContainer, s.selfContainer)
+			return fmt.Errorf("cannot stop %s from its own UI - you'd have no way to start it back up from here; run `docker compose start %s` on the host instead", s.selfContainer, s.selfContainer)
 		}
 		slog.Warn("container stop requested", "target", name)
 		return s.dockerctl.Stop(ctx, name)
@@ -48,7 +48,7 @@ func (s *Server) performContainerAction(ctx context.Context, name, action string
 		return err
 
 	default:
-		return fmt.Errorf("unknown action %q — allowed: restart, stop, start", action)
+		return fmt.Errorf("unknown action %q - allowed: restart, stop, start", action)
 	}
 }
 

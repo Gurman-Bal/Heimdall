@@ -7,6 +7,7 @@ import (
 )
 
 type ActivityEntry struct {
+	ID      int64
 	Time    time.Time
 	Level   string
 	Message string

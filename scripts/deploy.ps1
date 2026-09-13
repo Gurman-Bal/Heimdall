@@ -12,9 +12,9 @@ Write-Host ""
 Write-Host "3. Watch both services start cleanly:" -ForegroundColor Yellow
 Write-Host "   docker compose logs -f heimdall-server heimdall-ui"
 Write-Host ""
-Write-Host "4. First deploy only — pull the model:" -ForegroundColor Yellow
+Write-Host "4. First deploy only - pull the model:" -ForegroundColor Yellow
 Write-Host "   docker exec heimdall-ollama ollama pull qwen2.5:0.5b"
 Write-Host ""
-Write-Host "5. Confirm the split actually works — restart the worker and watch" -ForegroundColor Yellow
+Write-Host "5. Confirm the split actually works - restart the worker and watch" -ForegroundColor Yellow
 Write-Host "   the dashboard stay responsive the whole time:"
 Write-Host "   (do this from the Ops tab in the UI, or: docker compose restart heimdall-server)"

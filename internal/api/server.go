@@ -72,6 +72,7 @@ func (s *Server) Start(addr string) error {
 
 	// Events / streaming.
 	protected.HandleFunc("GET /api/events", s.handleEvents)
+	protected.HandleFunc("GET /api/events/noise", s.handleEventNoise)
 	protected.HandleFunc("GET /api/stream", s.handleStream)
 
 	// Sources.
@@ -130,6 +131,17 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(events)
+}
+
+func (s *Server) handleEventNoise(w http.ResponseWriter, r *http.Request) {
+	noise, err := s.store.ListNoise(200)
+	if err != nil {
+		http.Error(w, "failed to load noise", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(noise)
 }
 
 func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {

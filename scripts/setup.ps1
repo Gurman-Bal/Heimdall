@@ -31,7 +31,7 @@ try {
         & ollama pull qwen2.5:0.5b
     }
 } catch {
-    Write-Host "Could not reach Ollama — install from https://ollama.com/download" -ForegroundColor Red
+    Write-Host "Could not reach Ollama - install from https://ollama.com/download" -ForegroundColor Red
 }
 
 Write-Host "`nFormatting and linting..."
@@ -42,4 +42,4 @@ Write-Host ""
 Write-Host "== Setup complete ==" -ForegroundColor Cyan
 Write-Host "Heimdall is now split into two processes: worker + controller." -ForegroundColor Yellow
 Write-Host "Run both locally with: .\scripts\run-local.ps1" -ForegroundColor Yellow
-Write-Host "(or manually, each in its own terminal — see that script for the exact commands)"
+Write-Host "(or manually, each in its own terminal - see that script for the exact commands)"

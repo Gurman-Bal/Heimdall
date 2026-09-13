@@ -69,7 +69,7 @@ async function loadSources() {
         sourceList.innerHTML = `
             <div class="empty-state">
                 no sources configured
-                — add one below
+                - add one below
             </div>
         `;
 

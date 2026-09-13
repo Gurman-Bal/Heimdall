@@ -2,6 +2,10 @@ export async function getEvents() {
     return (await fetch("/api/events")).json();
 }
 
+export async function getEventNoise() {
+    return (await fetch("/api/events/noise")).json();
+}
+
 export async function getSourceTypes() {
     return (await fetch("/api/source-types")).json();
 }

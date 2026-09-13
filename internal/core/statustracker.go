@@ -2,8 +2,8 @@ package core
 
 import "sync/atomic"
 
-// StatusTracker holds Heimdall's own current operational state — running,
-// restarting, stopping — so the dashboard can show "what is the app doing
+// StatusTracker holds Heimdall's own current operational state - running,
+// restarting, stopping - so the dashboard can show "what is the app doing
 // right now" rather than just a feed of past log lines.
 type StatusTracker struct {
 	state atomic.Value

@@ -20,7 +20,7 @@ func TestListSourcesReturnsEmptySliceNotNil(t *testing.T) {
 		t.Fatal(err)
 	}
 	if sources == nil {
-		t.Error("expected empty slice, got nil — this serializes as JSON null and breaks the frontend")
+		t.Error("expected empty slice, got nil - this serializes as JSON null and breaks the frontend")
 	}
 	if len(sources) != 0 {
 		t.Errorf("expected 0 sources, got %d", len(sources))

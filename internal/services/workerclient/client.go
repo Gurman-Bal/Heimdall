@@ -39,7 +39,7 @@ type HealthStatus struct {
 	Reachable     bool   `json:"-"`
 }
 
-// Health never returns an error — if the worker is unreachable (mid-restart,
+// Health never returns an error - if the worker is unreachable (mid-restart,
 // which is expected and fine), Reachable is simply false. Callers show that
 // state in the UI instead of failing the whole status request.
 func (c *Client) Health(ctx context.Context) HealthStatus {

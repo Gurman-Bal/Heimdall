@@ -36,7 +36,7 @@ function close(value) {
     }
 }
 
-// Drop-in replacement for window.confirm — returns a Promise<boolean>.
+// Drop-in replacement for window.confirm - returns a Promise<boolean>.
 export function confirmDialog(message, { danger = false } = {}) {
     return new Promise(resolve => {
         resolveActive = resolve;
@@ -47,7 +47,7 @@ export function confirmDialog(message, { danger = false } = {}) {
     });
 }
 
-// Drop-in replacement for window.alert — returns a Promise<void> that
+// Drop-in replacement for window.alert - returns a Promise<void> that
 // resolves once dismissed, in case a caller wants to wait for it.
 export function alertDialog(message) {
     return new Promise(resolve => {

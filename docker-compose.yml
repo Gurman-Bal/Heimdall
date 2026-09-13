@@ -27,7 +27,7 @@ services:
       - HEIMDALL_REPORT_INTERVAL=1h
       - HEIMDALL_INTERNAL_ADDR=:9090
       - HEIMDALL_INTERNAL_TOKEN=${HEIMDALL_INTERNAL_TOKEN}
-    # no ports published — only the controller talks to this, over the
+    # no ports published - only the controller talks to this, over the
     # internal compose network by container name
 
   heimdall-controller:

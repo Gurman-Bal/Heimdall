@@ -37,7 +37,7 @@
 
 <div class="reconnect-overlay" id="reconnect-overlay">
     <div class="reconnect-message">
-        Heimdall is restarting — reconnecting automatically...
+        Heimdall is restarting - reconnecting automatically...
     </div>
 </div>
 
@@ -149,7 +149,15 @@
                     CRITICAL
                 </button>
 
+                <button
+                        class="filter-btn"
+                        data-severity="noise">
+                    NOISE
+                </button>
+
             </div>
+
+            <button class="filter-btn" id="watch-pause-btn">PAUSE</button>
         </div>
 
         <div
@@ -316,7 +324,7 @@
             <h2 class="ops-section-title">Session Settings</h2>
             <p class="ops-section-help">
                 How long you can stay idle before being logged out automatically.
-                Takes effect immediately — no restart needed.
+                Takes effect immediately - no restart needed.
             </p>
             <form class="add-form" id="settings-form">
                 <input type="number" id="session-timeout-minutes" placeholder="session timeout (minutes)" min="1" required>
