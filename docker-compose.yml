@@ -6,7 +6,7 @@ services:
     volumes:
       - ollama-data:/root/.ollama
 
-  heimdall-worker:
+  worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -30,14 +30,14 @@ services:
     # no ports published - only the controller talks to this, over the
     # internal compose network by container name
 
-  heimdall-controller:
+  controller:
     build:
       context: .
       dockerfile: Dockerfile.controller
     container_name: heimdall-ui
     restart: unless-stopped
     depends_on:
-      - heimdall-worker
+      - worker
     ports:
       - "8080:8080"
     volumes:
