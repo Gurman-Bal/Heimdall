@@ -18,6 +18,14 @@ type Classifier interface {
 	Classify(sourceType, message string) (severity, eventType string)
 }
 
+// NoiseChecker is satisfied by *core.NoiseDetector. Kept as a small
+// interface here (rather than importing the concrete type everywhere)
+// so ingest doesn't need to know how noise detection works, only that
+// something can answer "have I seen this too many times too recently".
+type NoiseChecker interface {
+	Check(source, message string) bool
+}
+
 // ParseFunc converts one raw log line into an Event. This is the only thing
 // that differs between source types - everything else is shared.
 type ParseFunc func(line string) core.Event
@@ -34,7 +42,8 @@ type FileSource struct {
 	sourceType string
 	parse      ParseFunc
 	store      OffsetStore
-	classifier Classifier // may be nil - falls back to whatever parse() set
+	classifier Classifier   // may be nil - falls back to whatever parse() set
+	noise      NoiseChecker // may be nil - noise detection disabled
 
 	mu     sync.Mutex
 	states []*fileState
@@ -46,6 +55,15 @@ func NewFileSource(sourceType string, paths []string, parse ParseFunc, store Off
 		f.states = append(f.states, &fileState{path: p})
 	}
 	return f
+}
+
+// EnableNoiseDetection wires in a fallback classifier that flags rapidly
+// repeating lines as noise even when no rule matched them. Call this once
+// after construction, from wherever FileSource instances are built, if you
+// want this behavior - it's opt-in so existing call sites keep compiling
+// untouched.
+func (f *FileSource) EnableNoiseDetection(nd NoiseChecker) {
+	f.noise = nd
 }
 
 func (f *FileSource) Name() string { return f.sourceType }
@@ -126,9 +144,25 @@ func (f *FileSource) Poll() ([]core.Event, error) {
 
 		for _, line := range lines {
 			event := f.parse(line)
+
 			if f.classifier != nil {
 				event.Severity, event.Type = f.classifier.Classify(f.sourceType, event.Message)
 			}
+
+			// Fallback classification: nothing matched a written rule
+			// (still sitting at the engine's own default of info/log),
+			// so ask the noise detector whether this exact shape of line
+			// has been repeating fast enough to call it noise on its own
+			// merits. This only ever fires on unclassified lines - it
+			// never overrides an explicit rule, even one that also
+			// happens to repeat a lot (e.g. a real recurring warning).
+			if f.noise != nil && event.Severity == "info" && event.Type == "log" {
+				if f.noise.Check(f.sourceType, event.Message) {
+					event.Severity = "ignore"
+					event.Type = "noise"
+				}
+			}
+
 			events = append(events, event)
 		}
 		st.offset = newOffset

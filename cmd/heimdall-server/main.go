@@ -81,6 +81,7 @@ func main() {
 	}
 
 	ruleEngine := core.NewRuleEngine()
+	noise := core.NewNoiseDetector(10*time.Second, 5) // 5 repeats within 10s = noise
 	bus := core.NewEventBus()
 
 	spool, err := core.NewEventSpool(cfg.EventBufferSize, cfg.SpoolDir, store.SaveEvents)
@@ -103,7 +104,7 @@ func main() {
 			paths = append(paths, c.Path)
 		}
 
-		src, ok := ingest.New(sourceType, paths, store, ruleEngine)
+		src, ok := ingest.New(sourceType, paths, store, ruleEngine, noise)
 		if !ok {
 			continue
 		}

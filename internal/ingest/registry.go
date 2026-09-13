@@ -19,12 +19,19 @@ func Registered() []string {
 }
 
 // New builds a FileSource for a registered type, or false if unknown.
-func New(sourceType string, paths []string, store OffsetStore, classifier Classifier) (*FileSource, bool) {
+// noise may be nil, which leaves frequency-based noise detection disabled
+// for that source - everything still works, it just falls back to
+// rule-only classification.
+func New(sourceType string, paths []string, store OffsetStore, classifier Classifier, noise NoiseChecker) (*FileSource, bool) {
 	parse, ok := registry[sourceType]
 	if !ok {
 		return nil, false
 	}
-	return NewFileSource(sourceType, paths, parse, store, classifier), true
+	fs := NewFileSource(sourceType, paths, parse, store, classifier)
+	if noise != nil {
+		fs.EnableNoiseDetection(noise)
+	}
+	return fs, true
 }
 
 // DefaultRule is the seed-time shape for a source type's starter rules -
