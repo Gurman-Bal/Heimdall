@@ -148,10 +148,17 @@ func (s *Store) RecentEvents(limit int) ([]core.Event, error) {
 
 func (s *Store) EventsSince(since time.Time) ([]core.Event, error) {
 	rows, err := s.db.Query(
-		`SELECT id, timestamp, source, type, severity, message
-FROM events
-WHERE timestamp >= ?
-ORDER BY id ASC`,
+		`SELECT e.id, e.timestamp, e.source, e.type, e.severity, e.message
+FROM events e
+WHERE e.timestamp >= ?
+  AND NOT EXISTS (
+      SELECT 1
+      FROM event_noise n
+      WHERE n.source = e.source
+        AND n.type = e.type
+        AND n.message = e.message
+  )
+ORDER BY e.id ASC`,
 		since,
 	)
 	if err != nil {

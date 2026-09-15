@@ -140,9 +140,14 @@ func (s *Server) handleGenerateReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	if id == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(map[string]any{"id": id})
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]any{"id": id}); err != nil {
 		return
 	}
 }
