@@ -216,14 +216,13 @@ func (s *Store) SavePendingEvents(
 		fingerprint := core.EventFingerprint(e)
 
 		var count int
-		var firstSeen time.Time
 
 		err := tx.QueryRow(
-			`SELECT COUNT(*), MIN(timestamp)
+			`SELECT COUNT(*)
 FROM event_pending
 WHERE fingerprint = ?`,
 			fingerprint,
-		).Scan(&count, &firstSeen)
+		).Scan(&count)
 
 		if err != nil {
 			return nil, err
@@ -246,6 +245,19 @@ VALUES (?, ?, ?, ?, ?, ?)`,
 			}
 
 			continue
+		}
+
+		var firstSeen time.Time
+
+		err = tx.QueryRow(
+			`SELECT MIN(timestamp)
+FROM event_pending
+WHERE fingerprint = ?`,
+			fingerprint,
+		).Scan(&firstSeen)
+
+		if err != nil {
+			return nil, err
 		}
 
 		if e.Timestamp.Sub(firstSeen) > window {
@@ -358,6 +370,7 @@ ORDER BY id ASC`,
 		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
+
 		return nil, nil
 	}
 
@@ -531,111 +544,6 @@ ON CONFLICT(fingerprint) DO UPDATE SET
 	_, err = tx.Exec(
 		`DELETE FROM event_pending WHERE fingerprint = ?`,
 		fingerprint,
-	)
-
-	return err
-}
-
-// -----------------------------------------------------------------------------
-// Noise
-// -----------------------------------------------------------------------------
-
-type NoiseCount struct {
-	ID          int64     `json:"id"`
-	Fingerprint string    `json:"fingerprint"`
-	Source      string    `json:"source"`
-	Type        string    `json:"type"`
-	Message     string    `json:"message"`
-	Count       int64     `json:"count"`
-	FirstSeen   time.Time `json:"first_seen"`
-	LastSeen    time.Time `json:"last_seen"`
-}
-
-func (s *Store) ListNoise(limit int) ([]NoiseCount, error) {
-	rows, err := s.db.Query(
-		`SELECT id, fingerprint, source, type, message,
-       count, first_seen, last_seen
-FROM event_noise
-ORDER BY last_seen DESC
-LIMIT ?`,
-		limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	out := []NoiseCount{}
-
-	for rows.Next() {
-		var n NoiseCount
-
-		if err := rows.Scan(
-			&n.ID,
-			&n.Fingerprint,
-			&n.Source,
-			&n.Type,
-			&n.Message,
-			&n.Count,
-			&n.FirstSeen,
-			&n.LastSeen,
-		); err != nil {
-			return nil, err
-		}
-
-		out = append(out, n)
-	}
-
-	return out, rows.Err()
-}
-
-func (s *Store) PruneNoiseOlderThan(cutoff time.Time) (int64, error) {
-	res, err := s.db.Exec(
-		`DELETE FROM event_noise WHERE last_seen < ?`,
-		cutoff,
-	)
-	if err != nil {
-		return 0, err
-	}
-
-	return res.RowsAffected()
-}
-
-// -----------------------------------------------------------------------------
-// Offsets
-// -----------------------------------------------------------------------------
-
-func (s *Store) GetOffset(source, path string) (int64, bool, error) {
-	var offset int64
-
-	err := s.db.QueryRow(
-		`SELECT offset
-FROM offsets
-WHERE source = ? AND path = ?`,
-		source,
-		path,
-	).Scan(&offset)
-
-	if err == sql.ErrNoRows {
-		return 0, false, nil
-	}
-
-	if err != nil {
-		return 0, false, err
-	}
-
-	return offset, true, nil
-}
-
-func (s *Store) SetOffset(source, path string, offset int64) error {
-	_, err := s.db.Exec(
-		`INSERT INTO offsets (source, path, offset)
-VALUES (?, ?, ?)
-ON CONFLICT(source, path)
-DO UPDATE SET offset = excluded.offset`,
-		source,
-		path,
-		offset,
 	)
 
 	return err

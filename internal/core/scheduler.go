@@ -11,10 +11,7 @@ type Scheduler struct {
 	spool    *EventSpool
 }
 
-func NewScheduler(
-	spool *EventSpool,
-	interval time.Duration,
-) *Scheduler {
+func NewScheduler(spool *EventSpool, interval time.Duration) *Scheduler {
 	return &Scheduler{
 		spool:    spool,
 		interval: interval,

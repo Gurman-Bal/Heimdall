@@ -1,12 +1,12 @@
 -- +goose Up
 
-ALTER TABLE event_noise
-    ADD COLUMN fingerprint TEXT;
+ALTER TABLE event_noise ADD COLUMN fingerprint TEXT;
 
-CREATE UNIQUE INDEX IF NOT EXISTS
-    idx_event_noise_fingerprint
+CREATE UNIQUE INDEX IF NOT EXISTS idx_event_noise_fingerprint
     ON event_noise(fingerprint);
 
 -- +goose Down
 
 DROP INDEX IF EXISTS idx_event_noise_fingerprint;
+
+ALTER TABLE event_noise DROP COLUMN fingerprint;
