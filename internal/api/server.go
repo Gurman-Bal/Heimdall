@@ -74,6 +74,7 @@ func (s *Server) Start(addr string) error {
 	protected.HandleFunc("GET /api/events", s.handleEvents)
 	protected.HandleFunc("GET /api/events/noise", s.handleEventNoise)
 	protected.HandleFunc("GET /api/stream", s.handleStream)
+	protected.HandleFunc("DELETE /api/events", s.handleClearEvents)
 
 	// Sources.
 	protected.HandleFunc("GET /api/sources", s.handleListSources)
@@ -131,6 +132,19 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(events)
+}
+
+func (s *Server) handleClearEvents(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.ClearEvents(); err != nil {
+		http.Error(
+			w,
+			"failed to clear events",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleEventNoise(w http.ResponseWriter, r *http.Request) {

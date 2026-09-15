@@ -126,3 +126,9 @@ export async function updateSettings(sessionTimeoutSeconds) {
         body: JSON.stringify({ session_timeout_seconds: sessionTimeoutSeconds })
     });
 }
+
+export async function clearEvents() {
+    return fetch("/api/events", {
+        method: "DELETE",
+    });
+}

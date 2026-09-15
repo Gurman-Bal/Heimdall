@@ -58,3 +58,8 @@ func (s *Store) PruneActivityOlderThan(cutoff time.Time) (int64, error) {
 	}
 	return res.RowsAffected()
 }
+
+func (s *Store) ClearEvents() error {
+	_, err := s.db.Exec(`DELETE FROM events`)
+	return err
+}

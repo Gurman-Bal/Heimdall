@@ -1,5 +1,5 @@
 
-import { getEvents, getEventNoise } from "../api.js";
+import { getEvents, getEventNoise, clearEvents } from "../api.js";
 import { eventRow } from "../components/eventRow.js";
 import { enableExpandableRows } from "../utils.js";
 
@@ -17,6 +17,7 @@ const pauseBtn = document.getElementById("watch-pause-btn");
 const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
 const bifrost = document.getElementById("bifrost");
+const clearEventsBtn = document.getElementById("clear-events-btn");
 
 export async function initializeWatch() {
     if (initialized) return;
@@ -26,6 +27,7 @@ export async function initializeWatch() {
 
     initializeFilters();
     pauseBtn.addEventListener("click", togglePause);
+    clearEventsBtn.addEventListener("click", clearAllEvents);
 
     enableExpandableRows(eventList);
 
@@ -204,4 +206,27 @@ function connectStream() {
             connectStream();
         }, 3000);
     };
+}
+
+async function clearAllEvents() {
+    if (!confirm("Clear all stored events?")) {
+        return;
+    }
+
+    const res = await clearEvents();
+
+    if (!res.ok) {
+        return;
+    }
+
+    events = [];
+    pendingCount = 0;
+
+    if (currentFilter === "noise") {
+        await refreshNoise();
+    } else {
+        renderEvents();
+    }
+
+    updateStatus();
 }

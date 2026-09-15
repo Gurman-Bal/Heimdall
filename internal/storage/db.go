@@ -105,10 +105,17 @@ VALUES (?, ?, ?, ?, ?)`,
 
 func (s *Store) RecentEvents(limit int) ([]core.Event, error) {
 	rows, err := s.db.Query(
-		`SELECT id, timestamp, source, type, severity, message
-FROM events
-ORDER BY id DESC
-LIMIT ?`,
+		`SELECT e.timestamp, e.source, e.type, e.severity, e.message
+         FROM events e
+         WHERE NOT EXISTS (
+             SELECT 1
+             FROM event_noise n
+             WHERE n.source = e.source
+               AND n.type = e.type
+               AND n.message = e.message
+         )
+         ORDER BY e.id DESC
+         LIMIT ?`,
 		limit,
 	)
 	if err != nil {
@@ -116,14 +123,13 @@ LIMIT ?`,
 	}
 	defer rows.Close()
 
-	events := []core.Event{}
+	events := make([]core.Event, 0)
 
 	for rows.Next() {
 		var e core.Event
 		var ts time.Time
 
 		if err := rows.Scan(
-			&e.ID,
 			&ts,
 			&e.Source,
 			&e.Type,
