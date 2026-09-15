@@ -1,3 +1,4 @@
+
 import { getEvents, getEventNoise } from "../api.js";
 import { eventRow } from "../components/eventRow.js";
 import { enableExpandableRows } from "../utils.js";
@@ -5,116 +6,81 @@ import { enableExpandableRows } from "../utils.js";
 let events = [];
 let noise = [];
 let currentFilter = "all";
-let expandableEnabled = false;
 let paused = false;
 let pendingCount = 0;
+let initialized = false;
+let eventStream = null;
+let reconnectTimer = null;
 
 const eventList = document.getElementById("event-list");
 const pauseBtn = document.getElementById("watch-pause-btn");
-
 const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
 const bifrost = document.getElementById("bifrost");
 
 export async function initializeWatch() {
+    if (initialized) return;
+    initialized = true;
 
     events = await getEvents();
 
     initializeFilters();
+    pauseBtn.addEventListener("click", togglePause);
 
-    if (!expandableEnabled) {
-        enableExpandableRows(eventList);
-        pauseBtn.addEventListener("click", togglePause);
-        expandableEnabled = true;
-    }
+    enableExpandableRows(eventList);
 
-    renderCurrentFilter();
-
+    renderEvents();
     updateStatus();
-
     connectStream();
+}
+
+function initializeFilters() {
+    document
+        .querySelectorAll("#view-watch .filter-btn[data-severity]")
+        .forEach(btn => {
+            btn.addEventListener("click", async () => {
+                document
+                    .querySelectorAll(
+                        "#view-watch .filter-btn[data-severity]"
+                    )
+                    .forEach(b => b.classList.remove("active"));
+
+                btn.classList.add("active");
+                currentFilter = btn.dataset.severity;
+
+                if (currentFilter === "noise") {
+                    await refreshNoise();
+                } else {
+                    renderEvents();
+                }
+            });
+        });
 }
 
 function togglePause() {
     paused = !paused;
-    pauseBtn.textContent = paused ? `RESUME (${pendingCount})` : "PAUSE";
+
+    pauseBtn.textContent = paused
+        ? `RESUME (${pendingCount})`
+        : "PAUSE";
+
     pauseBtn.classList.toggle("active", paused);
 
     if (!paused) {
         pendingCount = 0;
-        renderCurrentFilter();
+        renderEvents();
         updateStatus();
     }
 }
 
-function initializeFilters() {
-
-    // Scoped to #view-watch so this never touches the Activity tab's
-    // 1H/24H/48H buttons or the pause button - they share the same
-    // .filter-btn class but aren't part of this view's severity filter.
-    document
-        .querySelectorAll("#view-watch .filter-btn[data-severity]")
-        .forEach(btn => {
-
-            btn.addEventListener("click", () => {
-
-                document
-                    .querySelectorAll("#view-watch .filter-btn[data-severity]")
-                    .forEach(b => b.classList.remove("active"));
-
-                btn.classList.add("active");
-
-                currentFilter =
-                    btn.dataset.severity;
-
-                renderCurrentFilter();
-
-            });
-
-        });
-
-}
-
-function renderCurrentFilter() {
-    if (currentFilter === "noise") {
-        loadNoise();
-        return;
-    }
-    renderEvents();
-}
-
-async function loadNoise() {
-    noise = await getEventNoise();
-
-    if (!noise || noise.length === 0) {
-        eventList.innerHTML = `<div class="empty-state">no noise recorded</div>`;
-        return;
-    }
-
-    eventList.innerHTML = noise
-        .map(n => `
-            <div class="event-row noise">
-                <span class="noise-count">${n.count}×</span>
-                <span class="event-source">${n.source}</span>
-                <span class="event-type">${n.type}</span>
-                <span class="event-message">${n.message}</span>
-                <span class="noise-last">last seen: ${new Date(n.last_seen).toLocaleTimeString()}</span>
-            </div>
-        `)
-        .join("");
-}
-
 function renderEvents() {
+    if (currentFilter === "noise") return;
 
-    const filtered =
-        currentFilter === "all"
-            ? events
-            : events.filter(
-                e => e.Severity === currentFilter
-            );
+    const filtered = currentFilter === "all"
+        ? events
+        : events.filter(e => e.Severity === currentFilter);
 
     if (filtered.length === 0) {
-
         eventList.innerHTML = `
             <div class="empty-state">
                 no events
@@ -125,62 +91,39 @@ function renderEvents() {
         }
             </div>
         `;
-
         return;
     }
 
-    eventList.innerHTML =
-        filtered
-            .map(eventRow)
-            .join("");
+    eventList.innerHTML = filtered.map(eventRow).join("");
 }
 
-function updateStatus() {
+function appendEvent(e) {
+    if (paused) {
+        pendingCount++;
+        pauseBtn.textContent = `RESUME (${pendingCount})`;
+        return;
+    }
 
-    const hasCritical =
-        events.some(
-            e => e.Severity === "critical"
-        );
+    if (currentFilter === "noise") return;
 
-    const hasWarning =
-        events.some(
-            e => e.Severity === "warning"
-        );
+    const matchesFilter =
+        currentFilter === "all" ||
+        e.Severity === currentFilter;
 
-    const level =
-        hasCritical
-            ? "critical"
-            : hasWarning
-                ? "warning"
-                : "info";
+    if (!matchesFilter) return;
 
-    const label =
-        hasCritical
-            ? "critical events active"
-            : hasWarning
-                ? "warnings present"
-                : "nominal";
+    const empty = eventList.querySelector(".empty-state");
+    if (empty) empty.remove();
 
-    statusDot.className =
-        `status-dot ${level}`;
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = eventRow(e);
 
-    statusText.textContent =
-        label;
-
-    bifrost.className =
-        `bifrost ${level}`;
+    const row = wrapper.firstElementChild;
+    eventList.prepend(row);
 }
 
 function prependEvent(e) {
-
-    // Ignore-severity events are aggregated server-side into event_noise
-    // and never land in /api/events, but the live SSE bus may still carry
-    // them the instant they're classified. Drop them here too, otherwise
-    // a single noisy source re-renders the whole list every second and
-    // wipes any row you've expanded to read, even with pause off.
-    if (e.Severity === "ignore") {
-        return;
-    }
+    if (e.Severity === "ignore") return;
 
     events.unshift(e);
 
@@ -188,40 +131,77 @@ function prependEvent(e) {
         events.pop();
     }
 
-    if (paused) {
-        pendingCount++;
-        pauseBtn.textContent = `RESUME (${pendingCount})`;
-        return;
-    }
-
-    if (currentFilter !== "noise") {
-        renderEvents();
-    }
-
+    appendEvent(e);
     updateStatus();
 }
 
+async function refreshNoise() {
+    noise = await getEventNoise();
+
+    if (currentFilter !== "noise") return;
+
+    if (!noise || noise.length === 0) {
+        eventList.innerHTML =
+            `<div class="empty-state">no noise recorded</div>`;
+        return;
+    }
+
+    eventList.innerHTML = noise.map(n => `
+        <div class="event-row noise">
+            <span class="noise-count">${n.count}×</span>
+            <span class="event-source">${n.source}</span>
+            <span class="event-type">${n.type}</span>
+            <span class="event-message">${n.message}</span>
+            <span class="noise-last">
+                last seen: ${new Date(n.last_seen).toLocaleTimeString()}
+            </span>
+        </div>
+    `).join("");
+}
+
+function updateStatus() {
+    const hasCritical = events.some(
+        e => e.Severity === "critical"
+    );
+
+    const hasWarning = events.some(
+        e => e.Severity === "warning"
+    );
+
+    const level = hasCritical
+        ? "critical"
+        : hasWarning
+            ? "warning"
+            : "info";
+
+    statusDot.className = `status-dot ${level}`;
+
+    statusText.textContent = hasCritical
+        ? "critical events active"
+        : hasWarning
+            ? "warnings present"
+            : "nominal";
+
+    bifrost.className = `bifrost ${level}`;
+}
+
 function connectStream() {
+    if (eventStream) return;
 
-    const es =
-        new EventSource("/api/stream");
+    eventStream = new EventSource("/api/stream");
 
-    es.onmessage = msg => {
-
-        const event =
-            JSON.parse(msg.data);
-
+    eventStream.onmessage = msg => {
+        const event = JSON.parse(msg.data);
         prependEvent(event);
     };
 
-    es.onerror = () => {
+    eventStream.onerror = () => {
+        eventStream.close();
+        eventStream = null;
 
-        es.close();
-
-        setTimeout(
-            connectStream,
-            3000
-        );
-
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connectStream();
+        }, 3000);
     };
 }

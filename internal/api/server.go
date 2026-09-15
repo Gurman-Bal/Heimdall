@@ -159,14 +159,23 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ch := s.bus.Subscribe(5000)
+	sub := s.bus.Subscribe(5000)
+	defer sub.Close()
 
 	for {
 		select {
-		case e := <-ch:
+		case e, ok := <-sub.Events:
+			if !ok {
+				return
+			}
+
 			data, err := json.Marshal(e)
 			if err != nil {
-				slog.Warn("failed to marshal stream event", "error", err)
+				slog.Warn(
+					"failed to marshal stream event",
+					"error",
+					err,
+				)
 				continue
 			}
 
