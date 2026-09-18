@@ -1,13 +1,12 @@
-
 import { getEvents, getEventNoise, clearEvents } from "../api.js";
 import { eventRow } from "../components/eventRow.js";
 import { enableExpandableRows } from "../utils.js";
 
 let events = [];
 let noise = [];
+let pendingEvents = [];
 let currentFilter = "all";
 let paused = false;
-let pendingCount = 0;
 let initialized = false;
 let eventStream = null;
 let reconnectTimer = null;
@@ -23,9 +22,13 @@ export async function initializeWatch() {
     if (initialized) return;
     initialized = true;
 
-    events = await getEvents();
+    // Load existing events, but never keep IGNORE events
+    events = (await getEvents()).filter(
+        e => e.Severity !== "ignore"
+    );
 
     initializeFilters();
+
     pauseBtn.addEventListener("click", togglePause);
     clearEventsBtn.addEventListener("click", clearAllEvents);
 
@@ -62,25 +65,43 @@ function initializeFilters() {
 function togglePause() {
     paused = !paused;
 
-    pauseBtn.textContent = paused
-        ? `RESUME (${pendingCount})`
-        : "PAUSE";
-
-    pauseBtn.classList.toggle("active", paused);
-
-    if (!paused) {
-        pendingCount = 0;
-        renderEvents();
-        updateStatus();
+    if (paused) {
+        pauseBtn.textContent = "RESUME (0)";
+        pauseBtn.classList.add("active");
+        return;
     }
+
+    // Resume
+    const bufferedEvents = pendingEvents;
+    pendingEvents = [];
+
+    pauseBtn.textContent = "PAUSE";
+    pauseBtn.classList.remove("active");
+
+    // Add buffered events to the normal event list
+    for (const event of bufferedEvents) {
+        addEventToHistory(event);
+    }
+
+    renderEvents();
+    updateStatus();
 }
 
 function renderEvents() {
     if (currentFilter === "noise") return;
 
-    const filtered = currentFilter === "all"
-        ? events
-        : events.filter(e => e.Severity === currentFilter);
+    // Defensive filtering:
+    // IGNORE events should never be rendered.
+    const visibleEvents = events.filter(
+        e => e.Severity !== "ignore"
+    );
+
+    const filtered =
+        currentFilter === "all"
+            ? visibleEvents
+            : visibleEvents.filter(
+                e => e.Severity === currentFilter
+            );
 
     if (filtered.length === 0) {
         eventList.innerHTML = `
@@ -96,15 +117,14 @@ function renderEvents() {
         return;
     }
 
-    eventList.innerHTML = filtered.map(eventRow).join("");
+    eventList.innerHTML = filtered
+        .map(eventRow)
+        .join("");
 }
 
 function appendEvent(e) {
-    if (paused) {
-        pendingCount++;
-        pauseBtn.textContent = `RESUME (${pendingCount})`;
-        return;
-    }
+    // IGNORE events should never reach the UI.
+    if (e.Severity === "ignore") return;
 
     if (currentFilter === "noise") return;
 
@@ -115,7 +135,9 @@ function appendEvent(e) {
     if (!matchesFilter) return;
 
     const empty = eventList.querySelector(".empty-state");
-    if (empty) empty.remove();
+    if (empty) {
+        empty.remove();
+    }
 
     const wrapper = document.createElement("div");
     wrapper.innerHTML = eventRow(e);
@@ -124,16 +146,38 @@ function appendEvent(e) {
     eventList.prepend(row);
 }
 
-function prependEvent(e) {
+function addEventToHistory(e) {
+    // Never store IGNORE events.
     if (e.Severity === "ignore") return;
 
     events.unshift(e);
 
+    // Keep only the newest 200 events.
     if (events.length > 200) {
         events.pop();
     }
+}
 
+function prependEvent(e) {
+    // IGNORE events do absolutely nothing.
+    if (e.Severity === "ignore") return;
+
+    // If paused, buffer the event instead of displaying it.
+    if (paused) {
+        pendingEvents.push(e);
+
+        pauseBtn.textContent =
+            `RESUME (${pendingEvents.length})`;
+
+        return;
+    }
+
+    // Store the event.
+    addEventToHistory(e);
+
+    // Display it if it matches the current filter.
     appendEvent(e);
+
     updateStatus();
 }
 
@@ -148,25 +192,35 @@ async function refreshNoise() {
         return;
     }
 
-    eventList.innerHTML = noise.map(n => `
-        <div class="event-row noise">
-            <span class="noise-count">${n.count}×</span>
-            <span class="event-source">${n.source}</span>
-            <span class="event-type">${n.type}</span>
-            <span class="event-message">${n.message}</span>
-            <span class="noise-last">
-                last seen: ${new Date(n.last_seen).toLocaleTimeString()}
-            </span>
-        </div>
-    `).join("");
+    eventList.innerHTML = noise
+        .map(n => `
+            <div class="event-row noise">
+                <span class="noise-count">${n.count}×</span>
+                <span class="event-source">${n.source}</span>
+                <span class="event-type">${n.type}</span>
+                <span class="event-message">${n.message}</span>
+                <span class="noise-last">
+                    last seen: ${new Date(
+            n.last_seen
+        ).toLocaleTimeString()}
+                </span>
+            </div>
+        `)
+        .join("");
 }
 
 function updateStatus() {
-    const hasCritical = events.some(
+    // events should already contain no IGNORE events,
+    // but keep this defensive anyway.
+    const visibleEvents = events.filter(
+        e => e.Severity !== "ignore"
+    );
+
+    const hasCritical = visibleEvents.some(
         e => e.Severity === "critical"
     );
 
-    const hasWarning = events.some(
+    const hasWarning = visibleEvents.some(
         e => e.Severity === "warning"
     );
 
@@ -193,13 +247,22 @@ function connectStream() {
     eventStream = new EventSource("/api/stream");
 
     eventStream.onmessage = msg => {
-        const event = JSON.parse(msg.data);
-        prependEvent(event);
+        try {
+            const event = JSON.parse(msg.data);
+            prependEvent(event);
+        } catch (err) {
+            console.error(
+                "Failed to parse event stream message:",
+                err
+            );
+        }
     };
 
     eventStream.onerror = () => {
         eventStream.close();
         eventStream = null;
+
+        if (reconnectTimer) return;
 
         reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
@@ -220,7 +283,7 @@ async function clearAllEvents() {
     }
 
     events = [];
-    pendingCount = 0;
+    pendingEvents = [];
 
     if (currentFilter === "noise") {
         await refreshNoise();
@@ -229,4 +292,8 @@ async function clearAllEvents() {
     }
 
     updateStatus();
+
+    if (paused) {
+        pauseBtn.textContent = "RESUME (0)";
+    }
 }
