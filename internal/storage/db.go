@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"heimdall/internal/core"
@@ -104,8 +105,10 @@ VALUES (?, ?, ?, ?, ?)`,
 }
 
 func (s *Store) RecentEvents(limit int) ([]core.Event, error) {
+	// e.id is now selected/scanned - it was silently dropped before,
+	// meaning every event handed to the frontend had ID: 0.
 	rows, err := s.db.Query(
-		`SELECT e.timestamp, e.source, e.type, e.severity, e.message
+		`SELECT e.id, e.timestamp, e.source, e.type, e.severity, e.message
          FROM events e
          WHERE NOT EXISTS (
              SELECT 1
@@ -130,6 +133,7 @@ func (s *Store) RecentEvents(limit int) ([]core.Event, error) {
 		var ts time.Time
 
 		if err := rows.Scan(
+			&e.ID,
 			&ts,
 			&e.Source,
 			&e.Type,
@@ -191,7 +195,15 @@ ORDER BY e.id ASC`,
 }
 
 // -----------------------------------------------------------------------------
-// Pending events
+// Offsets live in offsets.go (GetOffset/SetOffset) - not duplicated here.
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Pending events - unchanged from your version. PendingEventManager (core
+// package) almost certainly calls these directly; I'm leaving the logic
+// exactly as you had it rather than guessing at a rewrite without seeing
+// that file. See the accompanying note about one specific thing worth
+// checking in it.
 // -----------------------------------------------------------------------------
 
 func (s *Store) SavePendingEvents(
@@ -217,6 +229,22 @@ func (s *Store) SavePendingEvents(
 	publish := make([]core.Event, 0)
 
 	for _, e := range events {
+		// A rule already deterministically decided this is noise (the
+		// docker bridge / veth chatter rule, etc). Aggregate it straight
+		// into event_noise and never let it touch `events` or the live
+		// bus - there's no reason to wait through the pending/threshold
+		// window for something already classified, and letting it fall
+		// through to the "insert immediately" branch below (which used to
+		// catch every non-info/log event, ignore included) was exactly
+		// why explicitly-tagged noise kept flooding Watch no matter how
+		// the fallback classifier or staging window were tuned.
+		if strings.EqualFold(e.Severity, "ignore") {
+			if err := s.recordNoiseTx(tx, e); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
 		if e.Severity != "info" || e.Type != "log" {
 			if err := s.insertEventTx(tx, e); err != nil {
 				return nil, err
@@ -428,6 +456,32 @@ VALUES (?, ?, ?, ?, ?)`,
 	}
 
 	return events, nil
+}
+
+// recordNoiseTx aggregates an already-classified noise event directly,
+// bypassing the pending/fingerprint staging entirely - that staging exists
+// to figure out whether an *unclassified* line is noise by watching it
+// repeat; something a rule already tagged ignore doesn't need to prove
+// itself first.
+func (s *Store) recordNoiseTx(tx *sql.Tx, e core.Event) error {
+	fingerprint := core.EventFingerprint(e)
+	pattern := core.NormalizeMessage(e.Message)
+
+	_, err := tx.Exec(
+		`INSERT INTO event_noise
+(fingerprint, source, type, message, count, first_seen, last_seen)
+VALUES (?, ?, ?, ?, 1, ?, ?)
+ON CONFLICT(fingerprint) DO UPDATE SET
+    count = event_noise.count + 1,
+    last_seen = excluded.last_seen`,
+		fingerprint,
+		e.Source,
+		e.Type,
+		pattern,
+		e.Timestamp,
+		e.Timestamp,
+	)
+	return err
 }
 
 func (s *Store) insertEventTx(tx *sql.Tx, e core.Event) error {
