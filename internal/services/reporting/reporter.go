@@ -56,29 +56,40 @@ type llmOutput struct {
 }
 
 func (r *Reporter) Generate(ctx context.Context, fallbackWindow time.Duration) (int64, error) {
+	slog.Info("report generation started")
+
 	since, err := r.store.LastReportTime()
 	if err != nil {
+		slog.Error("report generation: failed to check last report time", "error", err)
 		return 0, fmt.Errorf("failed to check last report time: %w", err)
 	}
 	if since.IsZero() {
 		since = time.Now().Add(-fallbackWindow)
+		slog.Info("no previous report found, using fallback window", "since", since, "window", fallbackWindow)
 	}
 
 	events, err := r.store.EventsSince(since)
 	if err != nil {
+		slog.Error("report generation: failed to load events", "error", err)
 		return 0, fmt.Errorf("failed to load events: %w", err)
 	}
+	slog.Info("report generation: events loaded", "count", len(events), "since", since)
+
 	if len(events) == 0 {
-		slog.Info("no new events since last report, skipping", "since", since)
+		slog.Info("no new events since last report, skipping report generation")
 		return 0, nil
 	}
 
 	prompt, countsLabel := buildPrompt(events)
+	slog.Info("report generation: prompt built, calling ollama", "model", r.cfg.Model, "prompt_chars", len(prompt))
 
+	callStart := time.Now()
 	summary, issues, err := r.callOllama(ctx, prompt)
 	if err != nil {
+		slog.Error("report generation: ollama call failed", "error", err, "elapsed", time.Since(callStart))
 		return 0, fmt.Errorf("ollama call failed: %w", err)
 	}
+	slog.Info("report generation: ollama responded", "elapsed", time.Since(callStart), "issue_count", len(issues))
 
 	issuesJSON, _ := json.Marshal(issues)
 	now := time.Now()
@@ -93,10 +104,11 @@ func (r *Reporter) Generate(ctx context.Context, fallbackWindow time.Duration) (
 		Model:       r.cfg.Model,
 	})
 	if err != nil {
+		slog.Error("report generation: failed to save report", "error", err)
 		return 0, fmt.Errorf("failed to save report: %w", err)
 	}
 
-	slog.Info("report generated", "id", id, "event_count", len(events), "issue_count", len(issues))
+	slog.Info("report generated", "id", id, "event_count", len(events), "issue_count", len(issues), "total_elapsed", time.Since(callStart))
 
 	r.bus.Publish(core.Event{
 		Timestamp: now,

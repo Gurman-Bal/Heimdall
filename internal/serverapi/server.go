@@ -3,6 +3,7 @@ package serverapi
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -42,6 +43,7 @@ func New(store *storage.Store, rules *core.RuleEngine, reporter *reporting.Repor
 func (s *Server) requireToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.token != "" && r.Header.Get("X-Internal-Token") != s.token {
+			slog.Warn("internal api request rejected: bad or missing token", "path", r.URL.Path, "remote", r.RemoteAddr)
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -55,29 +57,33 @@ func (s *Server) Start(addr string) error {
 	mux.HandleFunc("GET /internal/llm-health", s.requireToken(s.handleLLMHealth))
 	mux.HandleFunc("POST /internal/reload", s.requireToken(s.handleReload))
 	mux.HandleFunc("POST /internal/reports/generate", s.requireToken(s.handleGenerateReport))
+
+	slog.Info("worker internal api listening", "addr", addr, "token_configured", s.token != "")
 	return http.ListenAndServe(addr, mux)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(map[string]any{
+	payload := map[string]any{
 		"state":          s.status.Get(),
 		"events_dropped": s.bus.DroppedCount(),
 		"events_spilled": s.spool.SpilledCount(),
 		"spool_backlog":  s.spool.BacklogSize(),
-	})
-	if err != nil {
-		return
+	}
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		slog.Error("failed to encode health response", "error", err)
 	}
 }
 
 func (s *Server) handleLLMHealth(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
 	defer cancel()
+
+	health := s.reporter.Health(ctx)
+
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(s.reporter.Health(ctx))
-	if err != nil {
-		return
+	if err := json.NewEncoder(w).Encode(health); err != nil {
+		slog.Error("failed to encode llm health response", "error", err)
 	}
 }
 
@@ -85,14 +91,18 @@ func (s *Server) handleLLMHealth(w http.ResponseWriter, r *http.Request) {
 // the rule engine against whatever's currently in the database - called by
 // the controller right after any write to the sources or rules tables.
 func (s *Server) handleReload(w http.ResponseWriter, _ *http.Request) {
+	slog.Info("reload requested")
+
 	for _, sourceType := range ingest.Registered() {
 		managed, ok := s.sources[sourceType]
 		if !ok {
+			slog.Warn("reload: no managed source for registered type, skipping", "type", sourceType)
 			continue
 		}
 
 		wanted, err := s.store.ListSources(sourceType)
 		if err != nil {
+			slog.Error("reload: failed to list sources", "type", sourceType, "error", err)
 			continue
 		}
 		wantedSet := map[string]bool{}
@@ -106,48 +116,64 @@ func (s *Server) handleReload(w http.ResponseWriter, _ *http.Request) {
 			currentSet[p] = true
 		}
 
+		added, removed := 0, 0
 		for path := range wantedSet {
 			if !currentSet[path] {
 				managed.AddPath(path)
+				added++
 			}
 		}
 		for path := range currentSet {
 			if !wantedSet[path] {
 				managed.RemovePath(path)
+				removed++
 			}
+		}
+		if added > 0 || removed > 0 {
+			slog.Info("reload: paths reconciled", "type", sourceType, "added", added, "removed", removed)
 		}
 
 		cfgs, err := s.store.ListRules(sourceType)
 		if err != nil {
+			slog.Error("reload: failed to list rules", "type", sourceType, "error", err)
 			continue
 		}
 		defs := make([]core.RuleDef, len(cfgs))
 		for i, c := range cfgs {
 			defs[i] = core.RuleDef{ID: c.ID, Pattern: c.Pattern, Severity: c.Severity, EventType: c.EventType, Priority: c.Priority}
 		}
-		s.rules.Load(sourceType, defs)
+		if errs := s.rules.Load(sourceType, defs); len(errs) > 0 {
+			for _, e := range errs {
+				slog.Error("reload: rule failed to compile", "type", sourceType, "error", e)
+			}
+		}
 	}
 
+	slog.Info("reload complete")
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) handleGenerateReport(w http.ResponseWriter, r *http.Request) {
+	slog.Info("report generation requested via internal api")
+
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
 	id, err := s.reporter.Generate(ctx, time.Hour)
 	if err != nil {
+		slog.Error("report generation failed", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if id == 0 {
+		slog.Info("report generation returned no new report (nothing since last run)")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{"id": id}); err != nil {
-		return
+		slog.Error("failed to encode report generation response", "error", err)
 	}
 }
