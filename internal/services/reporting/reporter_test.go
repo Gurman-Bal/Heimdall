@@ -1,6 +1,8 @@
 package reporting
 
 import (
+	"context"
+	"heimdall/internal/storage"
 	"strings"
 	"testing"
 	"time"
@@ -59,8 +61,14 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestHealthReturnsUnreachableWithoutOllama(t *testing.T) {
-	r := New(nil, nil, Config{OllamaURL: "http://127.0.0.1:1", Model: "test"})
-	status := r.Health(nil) // nil context is fine here — Health wraps it with its own timeout regardless
+	store, err := storage.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create test store: %v", err)
+	}
+	defer store.Close()
+
+	r := New(store, core.NewEventBus(), Config{OllamaURL: "http://127.0.0.1:1", Model: "test"})
+	status := r.Health(context.Background())
 	if status.Reachable {
 		t.Error("expected unreachable status for a bogus URL")
 	}

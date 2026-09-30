@@ -59,9 +59,13 @@ export async function removeRule(id) {
 }
 
 export async function getReports() {
-    return (await fetch("/api/reports")).json();
+    const res = await fetch("/api/reports");
+    if (!res.ok) {
+        console.error("failed to load reports:", await res.text());
+        return [];
+    }
+    return res.json();
 }
-
 export async function generateReport() {
 
     return fetch("/api/reports/generate", {

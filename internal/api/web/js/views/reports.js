@@ -35,10 +35,15 @@ export async function initializeReports() {
 
 async function loadReports() {
 
-    const reports =
-        await getReports();
+    let reports;
+    try {
+        reports = await getReports();
+    } catch (err) {
+        console.error("failed to load reports:", err);
+        reports = [];
+    }
 
-    if (reports.length === 0) {
+    if (!reports || reports.length === 0) {
 
         reportList.innerHTML = `
             <div class="empty-state">
