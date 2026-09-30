@@ -81,7 +81,14 @@ func (s *Server) handleLLMHealth(w http.ResponseWriter, r *http.Request) {
 
 	health := s.reporter.Health(ctx)
 
+	slog.Info(
+		"llm health check completed",
+		"reachable", health.Reachable,
+		"model", health.Model,
+	)
+
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(health); err != nil {
 		slog.Error("failed to encode llm health response", "error", err)
 	}

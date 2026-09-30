@@ -596,23 +596,28 @@ func (s *Server) handleGenerateReport(w http.ResponseWriter, r *http.Request) {
 // -----------------------------------------------------------------------------
 
 func (s *Server) handleSystemStatus(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-	defer cancel()
-
 	var workerHealth workerclient.HealthStatus
 	var llmHealth workerclient.LLMHealth
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	workerCtx, workerCancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer workerCancel()
+
+	llmCtx, llmCancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer llmCancel()
+
 	go func() {
 		defer wg.Done()
-		workerHealth = s.worker.Health(ctx)
+		workerHealth = s.worker.Health(workerCtx)
 	}()
+
 	go func() {
 		defer wg.Done()
-		llmHealth = s.worker.LLMHealth(ctx)
+		llmHealth = s.worker.LLMHealth(llmCtx)
 	}()
+
 	wg.Wait()
 
 	w.Header().Set("Content-Type", "application/json")
