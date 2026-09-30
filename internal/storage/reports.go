@@ -65,10 +65,25 @@ func (s *Store) GetReport(id int64) (ReportRecord, error) {
 }
 
 func (s *Store) LastReportTime() (time.Time, error) {
+	slog.Info("LastReportTime: before QueryRow")
+
 	var t time.Time
-	err := s.db.QueryRow(`SELECT period_end FROM reports ORDER BY id DESC LIMIT 1`).Scan(&t)
+
+	err := s.db.QueryRow(
+		`SELECT period_end
+         FROM reports
+         ORDER BY id DESC
+         LIMIT 1`,
+	).Scan(&t)
+
+	slog.Info("LastReportTime: after QueryRow",
+		"time", t,
+		"error", err,
+	)
+
 	if errors.Is(err, sql.ErrNoRows) {
 		return time.Time{}, nil
 	}
+
 	return t, err
 }

@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -151,6 +152,11 @@ func (s *Store) RecentEvents(limit int) ([]core.Event, error) {
 }
 
 func (s *Store) EventsSince(since time.Time) ([]core.Event, error) {
+
+	slog.Info("EventsSince: before Query",
+		"since", since,
+	)
+
 	rows, err := s.db.Query(
 		`SELECT e.id, e.timestamp, e.source, e.type, e.severity, e.message
 FROM events e
@@ -165,6 +171,11 @@ WHERE e.timestamp >= ?
 ORDER BY e.id ASC`,
 		since,
 	)
+
+	slog.Info("EventsSince: after Query",
+		"error", err,
+	)
+
 	if err != nil {
 		return nil, err
 	}
