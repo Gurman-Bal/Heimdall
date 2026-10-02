@@ -150,6 +150,12 @@ func (c *Client) GenerateReport(ctx context.Context) (int64, error) {
 	}
 	defer closeBody(resp.Body)
 
+	// HTTP 204 No Content means no new events were available to generate a report
+	if resp.StatusCode == http.StatusNoContent {
+		slog.Info("worker skipped report generation: no new events")
+		return 0, nil
+	}
+
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
 		slog.Error("failed to read report generation response body", "error", readErr)

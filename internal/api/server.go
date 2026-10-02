@@ -574,7 +574,6 @@ func (s *Server) handleGenerateReport(w http.ResponseWriter, r *http.Request) {
 	)
 	defer cancel()
 
-	// Report generation now happens inside the worker.
 	id, err := s.worker.GenerateReport(ctx)
 	if err != nil {
 		http.Error(
@@ -582,6 +581,17 @@ func (s *Server) handleGenerateReport(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("report generation failed: %v", err),
 			http.StatusServiceUnavailable,
 		)
+		return
+	}
+
+	if id == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":      0,
+			"skipped": true,
+			"message": "No new events to report since last run",
+		})
 		return
 	}
 
