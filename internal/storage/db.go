@@ -230,21 +230,11 @@ func (s *Store) SavePendingEvents(
 	if err != nil {
 		return nil, err
 	}
-
 	defer tx.Rollback()
 
 	publish := make([]core.Event, 0)
 
 	for _, e := range events {
-		// A rule already deterministically decided this is noise (the
-		// docker bridge / veth chatter rule, etc). Aggregate it straight
-		// into event_noise and never let it touch `events` or the live
-		// bus - there's no reason to wait through the pending/threshold
-		// window for something already classified, and letting it fall
-		// through to the "insert immediately" branch below (which used to
-		// catch every non-info/log event, ignore included) was exactly
-		// why explicitly-tagged noise kept flooding Watch no matter how
-		// the fallback classifier or staging window were tuned.
 		if strings.EqualFold(e.Severity, "ignore") {
 			if err := s.recordNoiseTx(tx, e); err != nil {
 				return nil, err
@@ -264,7 +254,6 @@ func (s *Store) SavePendingEvents(
 		fingerprint := core.EventFingerprint(e)
 
 		var count int
-
 		err := tx.QueryRow(
 			`SELECT COUNT(*)
 FROM event_pending
@@ -295,17 +284,22 @@ VALUES (?, ?, ?, ?, ?, ?)`,
 			continue
 		}
 
-		var firstSeen time.Time
-
+		// Use `any` to avoid driver scan errors on SQLite aggregate functions (MIN)
+		var rawFirstSeen any
 		err = tx.QueryRow(
 			`SELECT MIN(timestamp)
 FROM event_pending
 WHERE fingerprint = ?`,
 			fingerprint,
-		).Scan(&firstSeen)
+		).Scan(&rawFirstSeen)
 
 		if err != nil {
 			return nil, err
+		}
+
+		firstSeen, err := parseSQLTimestamp(rawFirstSeen)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing MIN(timestamp) for fingerprint %s: %w", fingerprint, err)
 		}
 
 		if e.Timestamp.Sub(firstSeen) > window {
@@ -352,9 +346,11 @@ VALUES (?, ?, ?, ?, ?, ?)`,
 		count++
 
 		if count >= threshold {
-			if err := s.promoteFingerprintToNoiseTx(tx, fingerprint); err != nil {
+			promoted, err := s.promoteFingerprintTx(tx, fingerprint)
+			if err != nil {
 				return nil, err
 			}
+			publish = append(publish, promoted...)
 		}
 	}
 
@@ -617,4 +613,24 @@ ON CONFLICT(fingerprint) DO UPDATE SET
 	)
 
 	return err
+}
+
+func parseSQLTimestamp(val any) (time.Time, error) {
+	switch v := val.(type) {
+	case time.Time:
+		return v, nil
+	case string:
+		if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
+			return t, nil
+		}
+		return time.Parse(time.RFC3339, v)
+	case []byte:
+		str := string(v)
+		if t, err := time.Parse(time.RFC3339Nano, str); err == nil {
+			return t, nil
+		}
+		return time.Parse(time.RFC3339, str)
+	default:
+		return time.Time{}, fmt.Errorf("unsupported timestamp type %T: %v", val, val)
+	}
 }
