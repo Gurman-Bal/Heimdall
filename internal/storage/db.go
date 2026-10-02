@@ -231,11 +231,7 @@ func (s *Store) SavePendingEvents(
 		return nil, err
 	}
 
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
+	defer tx.Rollback()
 
 	publish := make([]core.Event, 0)
 
@@ -375,11 +371,7 @@ func (s *Store) PromoteExpiredPending(cutoff time.Time) ([]core.Event, error) {
 		return nil, err
 	}
 
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
+	defer tx.Rollback()
 
 	rows, err := tx.Query(
 		`SELECT id, timestamp, source, type, severity, message
