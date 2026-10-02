@@ -172,10 +172,6 @@ ORDER BY e.id ASC`,
 		since,
 	)
 
-	slog.Info("EventsSince: after Query",
-		"error", err,
-	)
-
 	if err != nil {
 		return nil, err
 	}
